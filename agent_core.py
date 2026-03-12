@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_classic.memory import ConversationBufferMemory
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from agent_tools import get_all_tools
 
@@ -20,52 +21,43 @@ class LuminaAgentCore:
             temperature=0.2
         )
         
-        # 2. 获取所有标准化工具
         self.tools = get_all_tools()
         
-        # 3. 设置多轮对话记忆机制
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history", 
-            return_messages=True
-        )
+        self.session_store = {}
         
-        # 4. 设计 Agent 的核心 Prompt
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个名为 Lumina 的资深智能助手。你可以进行正常的对话。
-            【极其重要】：用户已经在前端界面将文件上传到了你的本地向量知识库中！
-            当用户说到“这个文件”、“这份文档”或询问文档内容时，你必须立刻、优先调用 `ask_knowledge_base` 工具去查，绝对不能说你看不见文件或要求用户提供！
-            如果不确定答案，请结合检索到的内容诚实地说明。"""),
+            ("system", """你是一个名为 Lumina 的资深智能助手...（此处省略你的原版系统提示词）"""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ])
         
-        # 5. 创建 Tool Calling Agent (这是目前最先进的 Agent 类型)
         agent = create_tool_calling_agent(self.llm, self.tools, prompt)
-        
-        # 6. 实例化执行器
-        self.agent_executor = AgentExecutor(
+        self.base_agent_executor = AgentExecutor(
             agent=agent, 
             tools=self.tools, 
-            verbose=True,
-            memory=self.memory
+            verbose=True
         )
 
-    def chat(self, user_input: str) -> str:
-        """接收用户输入，返回 Agent 回答"""
+        self.agent_with_history = RunnableWithMessageHistory(
+            self.base_agent_executor,
+            self.get_session_history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+        )
+
+    def get_session_history(self, session_id: str) -> ChatMessageHistory:
+        if session_id not in self.session_store:
+            self.session_store[session_id] = ChatMessageHistory()
+        return self.session_store[session_id]
+
+    def chat(self, user_input: str, session_id: str = "default_session") -> str:
+        """接收用户输入和会话ID，返回 Agent 回答"""
         try:
-            response = self.agent_executor.invoke({"input": user_input})
+            response = self.agent_with_history.invoke(
+                {"input": user_input},
+                config={"configurable": {"session_id": session_id}}
+            )
             return response["output"]
         except Exception as e:
             return f"Agent 运行出错: {str(e)}"
-
-if __name__ == "__main__":
-    agent = LuminaAgentCore()
-    print("🤖 Lumina Agent 初始化完毕！(输入 'exit' 退出)")
-    while True:
-        user_input = input("\n🧑 你: ")
-        if user_input.lower() in ['exit', 'quit']:
-            break
-        
-        response = agent.chat(user_input)
-        print(f"\n🤖 Lumina: {response}")
