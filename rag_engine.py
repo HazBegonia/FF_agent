@@ -7,6 +7,7 @@ from langchain_community.document_loaders import UnstructuredFileLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 from langchain_classic.retrievers import ContextualCompressionRetriever
 from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
@@ -26,8 +27,8 @@ class AdvancedRAGEngine:
         self.AI_API_KEY = os.getenv("AI_API_KEY")
         self.base_url = os.getenv("AI_ENDPOINT")
         self.AI_MODEL = os.getenv("AI_MODEL")
-        self.AI_EMBEDDING_MODEL = os.getenv("AI_EMBEDDING_MODEL")
-        self.EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
+        # self.AI_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+        # self.EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
         
         # 1. 核心模型初始化 (这里默认使用 OpenAI，你可以随时换成本地的 Ollama/VLLM)
         self.llm = ChatOpenAI(
@@ -36,10 +37,12 @@ class AdvancedRAGEngine:
             api_key = self.AI_API_KEY,
             temperature = 0.3
         )
-        self.embeddings = OpenAIEmbeddings(
-            model = self.AI_EMBEDDING_MODEL,
-            api_key = self.EMBEDDING_API_KEY, 
-            base_url = self.base_url
+        self.embeddings = HuggingFaceBgeEmbeddings(
+            model_name="BAAI/bge-small-zh-v1.5",
+            # api_key = self.EMBEDDING_API_KEY, 
+            model_kwargs={'device': 'cpu'},       
+            encode_kwargs={'normalize_embeddings': True}
+            # base_url = self.base_url
         )
         
         # 初始化向量数据库引用

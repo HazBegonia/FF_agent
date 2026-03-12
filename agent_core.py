@@ -32,8 +32,9 @@ class LuminaAgentCore:
         # 4. 设计 Agent 的核心 Prompt
         prompt = ChatPromptTemplate.from_messages([
             ("system", """你是一个名为 Lumina 的资深智能助手。你可以进行正常的对话。
-            当遇到你需要外部信息才能回答的问题时（例如查询本地文档、翻译、读取网页），你必须优先使用为你提供的工具。
-            如果不确定答案，请诚实地说明。"""),
+            【极其重要】：用户已经在前端界面将文件上传到了你的本地向量知识库中！
+            当用户说到“这个文件”、“这份文档”或询问文档内容时，你必须立刻、优先调用 `ask_knowledge_base` 工具去查，绝对不能说你看不见文件或要求用户提供！
+            如果不确定答案，请结合检索到的内容诚实地说明。"""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),

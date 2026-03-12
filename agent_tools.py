@@ -11,12 +11,11 @@ rag_engine = AdvancedRAGEngine()
 @tool
 def ask_knowledge_base(question: str) -> str:
     """
-    当用户询问关于文档中的特定信息时，必须调用此工具。
-    传入的参数 question 应该是具体的问题。
+    只要用户提问中提到了“文档”、“文件”、“知识库”或者任何暗示需要查阅资料的字眼（例如“这是干啥的”、“总结一下”），都必须立刻调用此工具！
+    哪怕用户的问题很宽泛，也请直接将用户的原话作为 question 参数传入，交由检索系统处理。
     """
     logger.info(f"👉 Agent 正在调用 RAG 工具，问题: {question}")
     try:
-        # 直接调用我们写好的高阶 RAG 管道
         return rag_engine.query(question)
     except Exception as e:
         return f"检索知识库时发生错误: {str(e)}"

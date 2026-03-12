@@ -63,9 +63,6 @@ class ChatInterface(QWidget):
         self.chat_display.setOpenExternalLinks(True)
         self.chat_display.append("<b>🤖 Lumina:</b> 欢迎使用桌面端！请在下方输入您的问题，或者在左侧侧边栏上传文档。<br><br>")
         
-        font = self.chat_display.font()
-        font.setPointSize(11)
-        self.chat_display.setFont(font)
 
         self.inputLayout = QHBoxLayout()
         self.text_input = TextEdit(self)
@@ -211,7 +208,7 @@ class DocWorker(QThread):
         except Exception as e:
             self.progress_signal.emit(f"处理失败: {str(e)}")
             self.finish_signal.emit(False)
-            
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
