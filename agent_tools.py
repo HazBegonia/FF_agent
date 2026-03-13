@@ -7,7 +7,6 @@ from rag_engine import AdvancedRAGEngine
 logger = logging.getLogger(__name__)
 
 rag_engines = {}
-# 【新增】用一个简单的全局变量来记录当前在哪个对话
 CURRENT_SESSION_ID = "default_session" 
 
 def get_rag_engine(session_id: str) -> AdvancedRAGEngine:
@@ -16,13 +15,11 @@ def get_rag_engine(session_id: str) -> AdvancedRAGEngine:
         rag_engines[session_id] = AdvancedRAGEngine(db_dir=db_path)
     return rag_engines[session_id]
 
-# 【修改】删掉 config: RunnableConfig 参数
 @tool
 def ask_knowledge_base(question: str) -> str:
     """
     只要用户提问中提到了“文档”、“文件”、“知识库”或者任何暗示需要查阅资料的字眼，都必须立刻调用此工具！
     """
-    # 直接读取全局变量
     session_id = CURRENT_SESSION_ID
     logger.info(f"👉 Agent 正在调用 RAG 工具，Session: {session_id} | 问题: {question}")
     
