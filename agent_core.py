@@ -11,7 +11,7 @@ from agent_tools import get_all_tools
 
 load_dotenv()
 
-class LuminaAgentCore:
+class FFAgentCore:
     def __init__(self):
         # 1. 初始化模型
         self.llm = ChatOpenAI(
@@ -26,7 +26,7 @@ class LuminaAgentCore:
         self.session_store = {}
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个名为 Lumina 的资深智能助手...（此处省略你的原版系统提示词）"""),
+            ("system", """你是一个名为 FF 的资深智能助手...（此处省略你的原版系统提示词）"""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),

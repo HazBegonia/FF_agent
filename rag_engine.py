@@ -1,5 +1,5 @@
 import os
-# 【终极防弹衣】专治 Windows 下 PyTorch + PyQt 多线程死锁的三大神器
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["OMP_NUM_THREADS"] = "1" # 严禁底层 C++ 库在子线程里无限套娃开线程！
@@ -23,11 +23,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-# =====================================================================
-# 🌟 【核心架构变更：全局模型单例】 🌟
-# 我们将 Embedding 模型放到类的外面！
-# 这样它只会在主线程启动时加载一次，彻底切断了 PyQt 子线程间的生命周期纠缠！
-# =====================================================================
 logger.info("正在初始化全局向量模型...")
 GLOBAL_EMBEDDINGS = HuggingFaceBgeEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
@@ -50,7 +45,6 @@ class AdvancedRAGEngine:
             temperature = 0.3
         )
         
-        # 直接引用全局安全的模型实例
         self.embeddings = GLOBAL_EMBEDDINGS
 
     def ingest_document(self, file_path: str):
