@@ -14,6 +14,7 @@ agent = FFAgentCore()
 class ChatRequest(BaseModel):
     user_input: str
     session_id: str
+    system_prompt: str = "你是一个名为 FF 的资深智能助手..."
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
@@ -21,7 +22,7 @@ async def chat_endpoint(request: ChatRequest):
     try:
         agent_tools.CURRENT_SESSION_ID = request.session_id
         
-        response = agent.chat(request.user_input, request.session_id)
+        response = agent.chat(request.user_input, request.session_id, request.system_prompt)
         return {"status": "success", "data": response}
     except Exception as e:
         return {"status": "error", "message": str(e)}

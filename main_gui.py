@@ -11,7 +11,9 @@ from qfluentwidgets import (
     MSFluentWindow, TextEdit, PrimaryPushButton, 
     TextBrowser, InfoBar, InfoBarPosition, 
     setTheme, Theme, TitleLabel, FluentIcon, NavigationItemPosition,
-    ToolButton, TransparentToolButton, ListWidget
+    ToolButton, TransparentToolButton, ListWidget, LineEdit,
+    MessageBoxBase, SubtitleLabel,
+    RoundMenu, Action, MessageBox
 )
 
 import requests
@@ -41,17 +43,19 @@ class AgentWorker(QThread):
     update_signal = pyqtSignal(str) 
     finish_signal = pyqtSignal()
 
-    def __init__(self, user_input, session_id, parent=None):
+    def __init__(self, user_input, session_id, system_prompt, parent=None):
         super().__init__(parent)
         self.user_input = user_input
         self.session_id = session_id 
+        self.system_prompt = system_prompt
 
     def run(self):
         self.update_signal.emit(f"<b>🤖 FF:</b><br>")
         try:
             payload = {
                 "user_input": self.user_input, 
-                "session_id": self.session_id
+                "session_id": self.session_id,
+                "system_prompt": self.system_prompt
             }
             response = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=120)
             response.raise_for_status()
@@ -105,12 +109,42 @@ class DocWorker(QThread):
             self.progress_signal.emit(f"处理失败: {str(e)}")
             self.finish_signal.emit(False)
 
+class PromptDialog(MessageBoxBase):
+    """自定义系统提示词输入弹窗"""
+    def __init__(self, current_prompt="", parent=None):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel('✨ 设定专属智能体角色', self)
+        self.textEdit = TextEdit(self)
+        
+        self.textEdit.setPlaceholderText("例如：你是一位精通Python的资深老师，请用幽默风趣的语言解答我的问题...")
+        self.textEdit.setText(current_prompt)
+        self.textEdit.setMinimumHeight(150)
+
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addWidget(self.textEdit)
+
+        self.widget.setMinimumWidth(450)
+
+class RenameDialog(MessageBoxBase):
+    """自定义重命名对话弹窗"""
+    def __init__(self, current_name="", parent=None):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel('✏️ 重命名对话', self)
+        self.nameEdit = LineEdit(self)
+        self.nameEdit.setText(current_name)
+        self.nameEdit.setClearButtonEnabled(True)
+
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addWidget(self.nameEdit)
+        self.widget.setMinimumWidth(350)
+
 class ChatInterface(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setObjectName("ChatInterface")
         
         self.session_ui_history = {} 
+        self.session_prompts = {}
         self.current_session_id = None
 
         self.mainLayout = QHBoxLayout(self)
@@ -130,6 +164,9 @@ class ChatInterface(QWidget):
         self.session_list = ListWidget(self.left_container)
         self.session_list.itemClicked.connect(self.switch_session)
 
+        self.session_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self.show_context_menu)
+
         self.leftPanel.addWidget(self.btn_new_chat)
         self.leftPanel.addWidget(self.session_list)
         self._is_sidebar_expanded = True
@@ -137,16 +174,26 @@ class ChatInterface(QWidget):
         self.sidebar_anim.setDuration(300)
         self.sidebar_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
+        # ---------------- 右侧主要区域 ----------------
         self.rightPanel = QVBoxLayout()
-        
+
+        # 1. 标题栏与角色设定按钮
         self.title_layout = QHBoxLayout()
         self.title_label = TitleLabel("FF 智能体", self)
+        
+        self.btn_set_role = ToolButton(FluentIcon.EDIT, self)
+        self.btn_set_role.setToolTip("设定智能体角色 (System Prompt)")
+        self.btn_set_role.clicked.connect(self.open_prompt_dialog)
+        
         self.title_layout.addWidget(self.title_label)
         self.title_layout.addStretch(1) 
+        self.title_layout.addWidget(self.btn_set_role)
 
+        # 2. 聊天历史显示区
         self.chat_display = TextBrowser(self)
         self.chat_display.setOpenExternalLinks(True)
 
+        # 3. 底部输入区
         self.inputLayout = QHBoxLayout()
 
         self.text_input = ChatTextEdit(self)
@@ -161,6 +208,7 @@ class ChatInterface(QWidget):
         self.inputLayout.addWidget(self.text_input)
         self.inputLayout.addWidget(self.btn_send)
 
+        # --- 组装右侧面板 ---
         self.rightPanel.addLayout(self.title_layout) 
         self.rightPanel.addWidget(self.chat_display)
         self.rightPanel.addLayout(self.inputLayout)
@@ -168,7 +216,29 @@ class ChatInterface(QWidget):
         self.mainLayout.addWidget(self.left_container)
         self.mainLayout.addLayout(self.rightPanel, 1)
 
+        # 默认创建第一个会话
         self.create_new_session()
+    
+    def open_prompt_dialog(self):
+        if not self.current_session_id:
+            return
+
+        current_prompt = self.session_prompts.get(self.current_session_id, "")
+        
+        dialog = PromptDialog(current_prompt, self.window())
+        
+        if dialog.exec(): 
+            new_prompt = dialog.textEdit.toPlainText().strip()
+            self.session_prompts[self.current_session_id] = new_prompt
+            
+            InfoBar.success(
+                title='角色已更新',
+                content='当前对话的专属系统提示词已生效！',
+                orient=Qt.Orientation.Horizontal,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self.window()
+            )
 
     def toggle_sidebar(self):
         if self.sidebar_anim.state() == QPropertyAnimation.State.Running:
@@ -191,17 +261,76 @@ class ChatInterface(QWidget):
         
         welcome_msg = "<b>🤖 FF:</b> 欢迎！有什么可以帮助的呢？<br><br>"
         self.session_ui_history[new_id] = welcome_msg
+        self.session_prompts[new_id] = "你是一个名为 FF 的资深智能助手..."
         
         item = QtWidgets.QListWidgetItem(session_name)
         item.setData(Qt.ItemDataRole.UserRole, new_id)
         self.session_list.addItem(item)
         self.session_list.setCurrentItem(item)
+        self.btn_send.setEnabled(True)
+        self.text_input.setEnabled(True)
         
         self._load_session(new_id)
 
     def switch_session(self, item):
         session_id = item.data(Qt.ItemDataRole.UserRole)
         self._load_session(session_id)
+
+    def show_context_menu(self, pos):
+        """在鼠标右键点击的位置显示菜单"""
+        item = self.session_list.itemAt(pos)
+        if not item:
+            return
+
+        self.session_list.setCurrentItem(item)
+        self.switch_session(item)
+
+        menu = RoundMenu(parent=self)
+        
+        rename_action = Action(FluentIcon.EDIT, '重命名', self)
+        rename_action.triggered.connect(lambda: self.rename_session(item))
+        
+        delete_action = Action(FluentIcon.DELETE, '删除对话', self)
+        delete_action.triggered.connect(lambda: self.delete_session(item))
+        
+        menu.addAction(rename_action)
+        menu.addAction(delete_action)
+        
+        menu.exec(self.session_list.mapToGlobal(pos))
+
+    def rename_session(self, item):
+        """弹出重命名窗口"""
+        dialog = RenameDialog(item.text(), self.window())
+        if dialog.exec():
+            new_name = dialog.nameEdit.text().strip()
+            if new_name:
+                item.setText(new_name)
+
+    def delete_session(self, item):
+        """删除当前会话"""
+        title = '删除对话'
+        content = f'确定要删除 "{item.text()}" 吗？此操作无法恢复。'
+        w = MessageBox(title, content, self.window())
+        if w.exec():
+            session_id = item.data(Qt.ItemDataRole.UserRole)
+            
+            row = self.session_list.row(item)
+            self.session_list.takeItem(row)
+            
+            if session_id in self.session_ui_history:
+                del self.session_ui_history[session_id]
+            if session_id in self.session_prompts:
+                del self.session_prompts[session_id]
+            if self.session_list.count() > 0:
+                first_item = self.session_list.item(0)
+                self.session_list.setCurrentItem(first_item)
+                self.switch_session(first_item)
+            else:
+                self.current_session_id = None
+                self.chat_display.setHtml("<br><br><h3 style='text-align:center; color:gray;'>暂无对话，请点击左侧 ➕ 新建对话。</h3>")
+                self.btn_send.setEnabled(False)
+                self.text_input.setEnabled(False)
+                self.btn_set_role.setToolTip("请先新建对话")
 
     def _load_session(self, session_id):
         self.current_session_id = session_id
@@ -220,7 +349,11 @@ class ChatInterface(QWidget):
         self.btn_send.setEnabled(False)
         self.text_input.setEnabled(False)
 
-        self.agent_thread = AgentWorker(user_text, self.current_session_id)
+        current_sys_prompt = self.session_prompts.get(self.current_session_id, "")
+        if not current_sys_prompt:
+            current_sys_prompt = "你是一个名为 FF 的资深智能助手..." 
+
+        self.agent_thread = AgentWorker(user_text, self.current_session_id, current_sys_prompt)
         self.agent_thread.update_signal.connect(self.update_chat_display)
         self.agent_thread.finish_signal.connect(self.agent_finished)
         self.agent_thread.start()
@@ -237,7 +370,6 @@ class ChatInterface(QWidget):
         self.btn_send.setEnabled(True)
         self.text_input.setEnabled(True)
         self.text_input.setFocus()
-
 class SafeMenuButton(QWidget):
     clicked = pyqtSignal() 
 

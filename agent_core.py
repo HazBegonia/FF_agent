@@ -26,7 +26,7 @@ class FFAgentCore:
         self.session_store = {}
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个名为 FF 的资深智能助手...（此处省略你的原版系统提示词）"""),
+            ("system", "{system_prompt}"), # 这里由固定字符串变为占位符变量
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -51,11 +51,14 @@ class FFAgentCore:
             self.session_store[session_id] = ChatMessageHistory()
         return self.session_store[session_id]
 
-    def chat(self, user_input: str, session_id: str = "default_session") -> str:
-        """接收用户输入和会话ID，返回 Agent 回答"""
+    def chat(self, user_input: str, session_id: str = "default_session", system_prompt: str = "你是一个名为 FF 的资深智能助手...") -> str:
+        """接收用户输入、会话ID和系统提示词，返回 Agent 回答"""
         try:
             response = self.agent_with_history.invoke(
-                {"input": user_input},
+                {
+                    "input": user_input, 
+                    "system_prompt": system_prompt
+                },
                 config={"configurable": {"session_id": session_id}}
             )
             return response["output"]
