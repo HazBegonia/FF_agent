@@ -14,7 +14,28 @@ from qfluentwidgets import (
     ToolButton, TransparentToolButton, ListWidget
 )
 
-API_BASE_URL = "https://64d7d753.r33.cpolar.top"
+import requests
+
+def get_real_api_url():
+    online_config_url = "https://gitee.com/Haz_Begonia/ff-config/raw/master/url.txt" 
+    
+    try:
+        response = requests.get(online_config_url, timeout=5)
+        if response.status_code == 200:
+            real_url = response.text.strip()
+            
+            if real_url.startswith("http"):
+                print(f"成功获取动态地址: {real_url}")
+                return real_url
+            else:
+                print("警告：抓取到的内容不是有效网址，可能链接填错了！内容前50个字符为：", real_url[:50])
+                
+    except Exception as e:
+        print("获取动态地址失败，将使用本地默认地址:", e)
+    
+    return "http://127.0.0.1:8000" 
+
+API_BASE_URL = get_real_api_url()
 
 class AgentWorker(QThread):
     update_signal = pyqtSignal(str) 
